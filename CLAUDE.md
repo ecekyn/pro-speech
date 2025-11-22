@@ -10,7 +10,8 @@ Pro-speech is a mobile app that listens to and reads daily conversations, then r
 
 Monorepo structure:
 - `apps/mobile` - React Native mobile app (TypeScript)
-- `packages/` - Shared code (future backend, utilities)
+- `apps/backend` - Go + Gin REST API
+- `packages/` - Shared code (future utilities)
 
 ## Development Commands
 
@@ -40,9 +41,30 @@ npm run lint
 npm start
 ```
 
+### Backend (apps/backend)
+
+```bash
+# Run server
+go run main.go
+
+# Build
+go build -o server
+
+# Run tests
+go test ./...
+
+# Run single test
+go test -run TestName ./...
+```
+
 ## Tech Stack
 
+### Mobile
 - React Native 0.82.1
 - TypeScript
 - Jest for testing
 - ESLint + Prettier for code quality
+
+### Backend
+- Go
+- Gin web framework
