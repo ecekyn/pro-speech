@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { DailyReport, Mistake } from '../services/api';
+import { colors, shadows } from '../theme';
 
 interface Props {
   report: DailyReport | null;
@@ -11,8 +12,11 @@ export function ReportView({ report, reportUnlocked }: Props) {
   if (!report) {
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tonight's report</Text>
-        <Text style={styles.mutedText}>No conversations analyzed today.</Text>
+        <SectionHeader title="Daily report" badge="Empty" />
+        <View style={styles.emptyPanel}>
+          <Text style={styles.emptyTitle}>No sessions today</Text>
+          <Text style={styles.mutedText}>Your report will build here.</Text>
+        </View>
       </View>
     );
   }
@@ -20,10 +24,8 @@ export function ReportView({ report, reportUnlocked }: Props) {
   if (!reportUnlocked) {
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tonight's report</Text>
-        <Text style={styles.summary}>
-          The top 3 speaking mistakes report appears at 8:00 PM.
-        </Text>
+        <SectionHeader title="Daily report" badge="8:00 PM" />
+        <Text style={styles.summary}>Top patterns appear at 8:00 PM.</Text>
         <View style={styles.statRow}>
           <ReportStat label="Sessions" value={String(report.session_count)} />
           <ReportStat
@@ -41,7 +43,7 @@ export function ReportView({ report, reportUnlocked }: Props) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Top 3 speaking mistakes today</Text>
+      <SectionHeader title="Daily report" badge="Ready" />
       <Text style={styles.summary}>{report.summary}</Text>
 
       {report.top_mistakes.length > 0 ? (
@@ -49,11 +51,24 @@ export function ReportView({ report, reportUnlocked }: Props) {
           <MistakeRow key={`${mistake.original}-${index}`} mistake={mistake} />
         ))
       ) : (
-        <Text style={styles.noMistakes}>
-          No recurring speaking mistakes found in today's analyzed
-          conversations.
-        </Text>
+        <View style={styles.successPanel}>
+          <Text style={styles.successTitle}>No recurring patterns</Text>
+          <Text style={styles.noMistakes}>
+            Today's analyzed conversations did not show repeated mistakes.
+          </Text>
+        </View>
       )}
+    </View>
+  );
+}
+
+function SectionHeader({ title, badge }: { title: string; badge: string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>{badge}</Text>
+      </View>
     </View>
   );
 }
@@ -71,11 +86,17 @@ function MistakeRow({ mistake }: { mistake: Mistake }) {
   return (
     <View style={styles.mistakeCard}>
       <View style={styles.mistakeHeader}>
-        <Text style={styles.category}>{mistake.category || 'pattern'}</Text>
+        <Text style={styles.category}>{mistake.category || 'Pattern'}</Text>
         <Text style={styles.count}>{mistake.count || 1}x</Text>
       </View>
-      <Text style={styles.original}>{mistake.original}</Text>
-      <Text style={styles.correction}>Use: {mistake.correction}</Text>
+      <View style={styles.phraseBlock}>
+        <Text style={styles.phraseLabel}>Heard</Text>
+        <Text style={styles.original}>{mistake.original}</Text>
+      </View>
+      <View style={[styles.phraseBlock, styles.phraseBlockCorrect]}>
+        <Text style={styles.phraseLabel}>Use</Text>
+        <Text style={styles.correction}>{mistake.correction}</Text>
+      </View>
       <Text style={styles.reason}>{mistake.reason}</Text>
     </View>
   );
@@ -83,27 +104,55 @@ function MistakeRow({ mistake }: { mistake: Mistake }) {
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
     marginBottom: 16,
   },
+  sectionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   sectionTitle: {
-    color: '#111827',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
+    color: colors.ink,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  badge: {
+    backgroundColor: colors.tealSoft,
+    borderColor: colors.glassStroke,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  badgeText: {
+    color: colors.tealDark,
+    fontSize: 12,
+    fontWeight: '800',
   },
   summary: {
-    color: '#4B5563',
+    color: colors.inkMuted,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 14,
   },
+  emptyPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+    ...shadows.card,
+  },
+  emptyTitle: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
   mutedText: {
-    color: '#6B7280',
+    color: colors.inkSubtle,
     fontSize: 14,
   },
   statRow: {
@@ -112,30 +161,33 @@ const styles = StyleSheet.create({
   },
   statItem: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E5E7EB',
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 10,
+    ...shadows.card,
   },
   statValue: {
-    color: '#0F766E',
+    color: colors.teal,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   statLabel: {
-    color: '#6B7280',
+    color: colors.inkSubtle,
     fontSize: 12,
+    fontWeight: '700',
     marginTop: 2,
   },
   mistakeCard: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E5E7EB',
+    backgroundColor: colors.surfaceStrong,
+    borderColor: colors.glassStroke,
     borderWidth: 1,
     borderRadius: 8,
+    marginBottom: 10,
     padding: 14,
-    marginTop: 10,
+    ...shadows.card,
   },
   mistakeHeader: {
     alignItems: 'center',
@@ -144,36 +196,63 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   category: {
-    color: '#475569',
+    color: colors.inkMuted,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   count: {
-    color: '#0F766E',
+    color: colors.teal,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  phraseBlock: {
+    backgroundColor: colors.redSoft,
+    borderRadius: 8,
+    marginBottom: 8,
+    padding: 10,
+  },
+  phraseBlockCorrect: {
+    backgroundColor: colors.greenSoft,
+  },
+  phraseLabel: {
+    color: colors.inkSubtle,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 3,
+    textTransform: 'uppercase',
   },
   original: {
-    color: '#B91C1C',
+    color: colors.red,
     fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 6,
+    fontWeight: '800',
     textDecorationLine: 'line-through',
   },
   correction: {
-    color: '#166534',
+    color: colors.green,
     fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 6,
+    fontWeight: '800',
   },
   reason: {
-    color: '#4B5563',
+    color: colors.inkMuted,
     fontSize: 13,
     lineHeight: 19,
   },
+  successPanel: {
+    backgroundColor: colors.greenSoft,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 14,
+  },
+  successTitle: {
+    color: colors.green,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
   noMistakes: {
-    color: '#166534',
+    color: colors.green,
     fontSize: 14,
     lineHeight: 20,
   },

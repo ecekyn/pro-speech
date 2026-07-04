@@ -11,11 +11,11 @@ import {
   AppState,
   PermissionsAndroid,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,10 +32,13 @@ import {
 } from '../services/api';
 import { ReportView } from '../components/ReportView';
 import { SessionReportView } from '../components/SessionReportView';
+import { colors, shadows } from '../theme';
 
 const REPORT_HOUR = 20;
+type AppTab = 'record' | 'insights' | 'voice';
 
 export function RecordingScreen() {
+  const [activeTab, setActiveTab] = useState<AppTab>('record');
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [isEnrollingVoice, setIsEnrollingVoice] = useState(false);
@@ -175,6 +178,7 @@ export function RecordingScreen() {
       setLatestSession(response.session);
       setDailyReport(response.daily_report);
       setNow(new Date());
+      setActiveTab('insights');
     } catch (error: any) {
       Alert.alert(
         'Analysis Error',
@@ -227,6 +231,7 @@ export function RecordingScreen() {
     try {
       const status = await enrollVoiceProfile(audioPath);
       setVoiceProfile(status);
+      setActiveTab('voice');
       Alert.alert(
         'Voice Profile Saved',
         'Future reports will try to match your enrolled voice before analyzing a speaker.',
@@ -245,89 +250,534 @@ export function RecordingScreen() {
 
   const sessionCount = dailyReport?.session_count ?? 0;
   const transcriptMinutes = dailyReport?.transcript_minutes ?? 0;
+  const mistakeCount = dailyReport?.top_mistakes.length ?? 0;
+  const captureState = isRecording
+    ? 'Recording'
+    : isUploading
+    ? 'Analyzing'
+    : 'Ready';
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <View pointerEvents="none" style={styles.backgroundCanvas}>
+        <View style={styles.backgroundTop} />
+        <View style={styles.backgroundShelf} />
+      </View>
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={isLoadingReport}
             onRefresh={() => loadReport(today)}
-            tintColor="#0F766E"
+            tintColor={colors.teal}
+            colors={[colors.teal]}
           />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Pro Speech</Text>
-          <Text style={styles.subtitle}>Daily English coach</Text>
-          <Text style={styles.reportBadge}>
-            {reportUnlocked ? '8:00 PM report ready' : reportCountdown(now)}
-          </Text>
-        </View>
+        <AppHeader now={now} reportUnlocked={reportUnlocked} />
 
-        <View style={styles.statsPanel}>
-          <Metric label="Sessions" value={String(sessionCount)} />
-          <Metric label="Minutes" value={String(transcriptMinutes)} />
-          <Metric
-            label="Mistakes"
-            value={String(dailyReport?.top_mistakes.length ?? 0)}
-          />
-        </View>
-
-        <View style={styles.capturePanel}>
-          <Text style={styles.panelTitle}>Daily capture</Text>
-          <VoiceProfileControl
-            voiceProfile={voiceProfile}
+        {activeTab === 'record' ? (
+          <RecordTab
+            captureState={captureState}
+            dailyReport={dailyReport}
             isEnrollingVoice={isEnrollingVoice}
-            voiceEnrollSeconds={voiceEnrollSeconds}
+            isRecording={isRecording}
+            isSavingVoice={isSavingVoice}
+            isUploading={isUploading}
+            latestSession={latestSession}
+            onManageVoice={() => setActiveTab('voice')}
+            onRecordPress={isRecording ? onStopRecord : onStartRecord}
+            recordSeconds={recordSeconds}
+            sessionCount={sessionCount}
+            transcriptMinutes={transcriptMinutes}
+            mistakeCount={mistakeCount}
+            voiceProfile={voiceProfile}
+          />
+        ) : null}
+
+        {activeTab === 'insights' ? (
+          <InsightsTab
+            dailyReport={dailyReport}
+            isUploading={isUploading}
+            latestSession={latestSession}
+            mistakeCount={mistakeCount}
+            reportUnlocked={reportUnlocked}
+            sessionCount={sessionCount}
+            transcriptMinutes={transcriptMinutes}
+          />
+        ) : null}
+
+        {activeTab === 'voice' ? (
+          <VoiceTab
+            isEnrollingVoice={isEnrollingVoice}
             isSavingVoice={isSavingVoice}
             onPress={
               isEnrollingVoice ? onStopVoiceEnrollment : onStartVoiceEnrollment
             }
+            voiceEnrollSeconds={voiceEnrollSeconds}
+            voiceProfile={voiceProfile}
           />
-          <Text style={styles.captureNote}>
-            {voiceProfile?.enrolled
-              ? 'Voice matching is active. Reports analyze only a confident match for your voice.'
-              : 'Set up a voice profile to avoid analyzing someone else in the conversation.'}
-          </Text>
-          <Text style={styles.timer}>{formatDuration(recordSeconds)}</Text>
-          <TouchableOpacity
-            accessibilityRole="button"
-            disabled={isUploading || isSavingVoice || isEnrollingVoice}
-            style={[
-              styles.recordButton,
-              isRecording && styles.stopButton,
-              (isUploading || isSavingVoice || isEnrollingVoice) &&
-                styles.disabledButton,
-            ]}
-            onPress={isRecording ? onStopRecord : onStartRecord}
-          >
-            <Text style={styles.recordButtonText}>
-              {isRecording ? 'Stop and analyze' : 'Start listening'}
-            </Text>
-          </TouchableOpacity>
-
-          {isUploading && (
-            <View style={styles.uploadingRow}>
-              <ActivityIndicator color="#0F766E" />
-              <Text style={styles.uploadingText}>Analyzing session...</Text>
-            </View>
-          )}
-        </View>
-
-        {latestSession && <SessionReportView session={latestSession} />}
-
-        <ReportView report={dailyReport} reportUnlocked={reportUnlocked} />
+        ) : null}
       </ScrollView>
+
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
     </SafeAreaView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function AppHeader({
+  now,
+  reportUnlocked,
+}: {
+  now: Date;
+  reportUnlocked: boolean;
+}) {
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerCopy}>
+        <Text style={styles.appName}>Pro Speech</Text>
+        <Text style={styles.title}>Today</Text>
+        <Text style={styles.subtitle}>{formatDisplayDate(now)}</Text>
+      </View>
+      <View
+        style={[styles.reportBadge, reportUnlocked && styles.reportBadgeReady]}
+      >
+        <Text
+          style={[
+            styles.reportBadgeText,
+            reportUnlocked && styles.reportBadgeReadyText,
+          ]}
+        >
+          {reportUnlocked ? 'Report ready' : reportCountdown(now)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function RecordTab({
+  captureState,
+  dailyReport,
+  isEnrollingVoice,
+  isRecording,
+  isSavingVoice,
+  isUploading,
+  latestSession,
+  mistakeCount,
+  onManageVoice,
+  onRecordPress,
+  recordSeconds,
+  sessionCount,
+  transcriptMinutes,
+  voiceProfile,
+}: {
+  captureState: string;
+  dailyReport: DailyReport | null;
+  isEnrollingVoice: boolean;
+  isRecording: boolean;
+  isSavingVoice: boolean;
+  isUploading: boolean;
+  latestSession: ConversationSession | null;
+  mistakeCount: number;
+  onManageVoice: () => void;
+  onRecordPress: () => void;
+  recordSeconds: number;
+  sessionCount: number;
+  transcriptMinutes: number;
+  voiceProfile: VoiceProfileStatus | null;
+}) {
+  return (
+    <>
+      <ScreenIntro
+        title="Record"
+        subtitle="Capture a conversation and review the analysis as soon as it finishes."
+      />
+
+      <VoiceStatusCard voiceProfile={voiceProfile} onPress={onManageVoice} />
+
+      <View style={styles.capturePanel}>
+        <View style={styles.panelHeader}>
+          <View>
+            <Text style={styles.panelEyebrow}>Capture</Text>
+            <Text style={styles.panelTitle}>Conversation</Text>
+          </View>
+          <View
+            style={[
+              styles.stateBadge,
+              isRecording && styles.stateBadgeLive,
+              isUploading && styles.stateBadgeWorking,
+            ]}
+          >
+            <Text
+              style={[
+                styles.stateBadgeText,
+                isRecording && styles.stateBadgeLiveText,
+                isUploading && styles.stateBadgeWorkingText,
+              ]}
+            >
+              {captureState}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.timerBlock}>
+          <Text style={styles.timer}>{formatDuration(recordSeconds)}</Text>
+          <Text style={styles.timerLabel}>
+            {isRecording
+              ? 'Listening'
+              : isUploading
+              ? 'Processing audio'
+              : 'Idle'}
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={isUploading || isSavingVoice || isEnrollingVoice}
+          style={({ pressed }) => [
+            styles.recordButton,
+            isRecording && styles.stopButton,
+            pressed && styles.pressedButton,
+            (isUploading || isSavingVoice || isEnrollingVoice) &&
+              styles.disabledButton,
+          ]}
+          onPress={onRecordPress}
+        >
+          <Text style={styles.recordButtonText}>
+            {isRecording ? 'Stop and analyze' : 'Start recording'}
+          </Text>
+        </Pressable>
+
+        {isUploading && (
+          <View style={styles.uploadingRow}>
+            <ActivityIndicator color={colors.teal} />
+            <Text style={styles.uploadingText}>
+              Preparing your latest analysis
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.summaryPanel}>
+        <View style={styles.sectionHeaderCompact}>
+          <Text style={styles.sectionHeading}>Today at a glance</Text>
+          <Text style={styles.sectionMeta}>
+            {dailyReport ? 'Updated' : 'Waiting'}
+          </Text>
+        </View>
+        <View style={styles.statsPanel}>
+          <Metric label="Sessions" value={String(sessionCount)} tone="teal" />
+          <Metric
+            label="Minutes"
+            value={String(transcriptMinutes)}
+            tone="blue"
+          />
+          <Metric label="Patterns" value={String(mistakeCount)} tone="amber" />
+        </View>
+        <Text style={styles.helperText}>
+          {latestSession
+            ? 'Latest analysis is available in Insights.'
+            : 'Start a recording to create your first session analysis.'}
+        </Text>
+      </View>
+    </>
+  );
+}
+
+function InsightsTab({
+  dailyReport,
+  isUploading,
+  latestSession,
+  mistakeCount,
+  reportUnlocked,
+  sessionCount,
+  transcriptMinutes,
+}: {
+  dailyReport: DailyReport | null;
+  isUploading: boolean;
+  latestSession: ConversationSession | null;
+  mistakeCount: number;
+  reportUnlocked: boolean;
+  sessionCount: number;
+  transcriptMinutes: number;
+}) {
+  return (
+    <>
+      <ScreenIntro
+        title="Insights"
+        subtitle="Review the latest session and track the patterns building through the day."
+      />
+
+      <View style={styles.statsPanel}>
+        <Metric label="Sessions" value={String(sessionCount)} tone="teal" />
+        <Metric label="Minutes" value={String(transcriptMinutes)} tone="blue" />
+        <Metric label="Patterns" value={String(mistakeCount)} tone="amber" />
+      </View>
+
+      {isUploading ? (
+        <View style={styles.analysisPendingPanel}>
+          <ActivityIndicator color={colors.teal} />
+          <View style={styles.analysisPendingCopy}>
+            <Text style={styles.analysisPendingTitle}>Analyzing audio</Text>
+            <Text style={styles.analysisPendingText}>
+              The session report will appear here when processing finishes.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {latestSession ? (
+        <SessionReportView session={latestSession} />
+      ) : (
+        <EmptyState
+          title="No session analysis yet"
+          text="Record a conversation to see speaker filtering, mistakes, and transcript details."
+        />
+      )}
+
+      <ReportView report={dailyReport} reportUnlocked={reportUnlocked} />
+    </>
+  );
+}
+
+function VoiceTab({
+  isEnrollingVoice,
+  isSavingVoice,
+  onPress,
+  voiceEnrollSeconds,
+  voiceProfile,
+}: {
+  isEnrollingVoice: boolean;
+  isSavingVoice: boolean;
+  onPress: () => void;
+  voiceEnrollSeconds: number;
+  voiceProfile: VoiceProfileStatus | null;
+}) {
+  return (
+    <>
+      <ScreenIntro
+        title="Voice"
+        subtitle="Create and update the profile used to ignore other speakers in your conversations."
+      />
+
+      <VoiceStatusCard voiceProfile={voiceProfile} />
+
+      <View style={styles.capturePanel}>
+        <View style={styles.panelHeader}>
+          <View>
+            <Text style={styles.panelEyebrow}>Profile</Text>
+            <Text style={styles.panelTitle}>Voice lock</Text>
+          </View>
+          <View
+            style={[
+              styles.stateBadge,
+              isEnrollingVoice && styles.stateBadgeLive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.stateBadgeText,
+                isEnrollingVoice && styles.stateBadgeLiveText,
+              ]}
+            >
+              {isEnrollingVoice ? 'Recording' : 'Ready'}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.profileBody}>
+          A short voice sample helps Pro Speech analyze only your speech when a
+          conversation has multiple people.
+        </Text>
+
+        <VoiceProfileControl
+          voiceProfile={voiceProfile}
+          isEnrollingVoice={isEnrollingVoice}
+          voiceEnrollSeconds={voiceEnrollSeconds}
+          isSavingVoice={isSavingVoice}
+          onPress={onPress}
+        />
+      </View>
+
+      <View style={styles.educationPanel}>
+        <Text style={styles.sectionHeading}>How analysis works</Text>
+        <ProfileStep
+          index="1"
+          title="Enroll your voice"
+          text="Record a sample so the backend has a reference."
+        />
+        <ProfileStep
+          index="2"
+          title="Record conversations"
+          text="Sessions can include multiple speakers."
+        />
+        <ProfileStep
+          index="3"
+          title="Filter and report"
+          text="Only confident matches are used for your mistake report."
+        />
+      </View>
+    </>
+  );
+}
+
+function ScreenIntro({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={styles.screenIntro}>
+      <Text style={styles.screenTitle}>{title}</Text>
+      <Text style={styles.screenSubtitle}>{subtitle}</Text>
+    </View>
+  );
+}
+
+function VoiceStatusCard({
+  voiceProfile,
+  onPress,
+}: {
+  voiceProfile: VoiceProfileStatus | null;
+  onPress?: () => void;
+}) {
+  const ready = Boolean(voiceProfile?.enrolled);
+
+  return (
+    <View
+      style={[styles.voiceStatusPanel, ready && styles.voiceStatusPanelActive]}
+    >
+      <View style={[styles.statusDot, ready && styles.statusDotActive]} />
+      <View style={styles.voiceStatusCopy}>
+        <Text style={styles.voiceStatusTitle}>
+          {ready ? 'Voice lock active' : 'Voice lock not set'}
+        </Text>
+        <Text style={styles.voiceStatusText}>
+          {ready
+            ? profileSampleText(voiceProfile)
+            : 'Create a profile before long conversations.'}
+        </Text>
+      </View>
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.manageButton,
+            pressed && styles.pressedButton,
+          ]}
+        >
+          <Text style={styles.manageButtonText}>Manage</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyStateTitle}>{title}</Text>
+      <Text style={styles.emptyStateText}>{text}</Text>
+    </View>
+  );
+}
+
+function ProfileStep({
+  index,
+  title,
+  text,
+}: {
+  index: string;
+  title: string;
+  text: string;
+}) {
+  return (
+    <View style={styles.profileStep}>
+      <View style={styles.profileStepIndex}>
+        <Text style={styles.profileStepIndexText}>{index}</Text>
+      </View>
+      <View style={styles.profileStepCopy}>
+        <Text style={styles.profileStepTitle}>{title}</Text>
+        <Text style={styles.profileStepText}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
+function TabBar({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
+}) {
+  return (
+    <View style={styles.tabBar}>
+      <TabButton
+        active={activeTab === 'record'}
+        label="Record"
+        onPress={() => onTabChange('record')}
+      />
+      <TabButton
+        active={activeTab === 'insights'}
+        label="Insights"
+        onPress={() => onTabChange('insights')}
+      />
+      <TabButton
+        active={activeTab === 'voice'}
+        label="Voice"
+        onPress={() => onTabChange('voice')}
+      />
+    </View>
+  );
+}
+
+function TabButton({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.tabButton,
+        active && styles.tabButtonActive,
+        pressed && styles.pressedButton,
+      ]}
+    >
+      <Text
+        style={[styles.tabButtonText, active && styles.tabButtonTextActive]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'teal' | 'blue' | 'amber';
+}) {
+  const toneStyle =
+    tone === 'blue'
+      ? styles.metricValueBlue
+      : tone === 'amber'
+      ? styles.metricValueAmber
+      : styles.metricValueTeal;
+
   return (
     <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={[styles.metricValue, toneStyle]}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
@@ -347,24 +797,26 @@ function VoiceProfileControl({
   onPress: () => void;
 }) {
   const enrolled = Boolean(voiceProfile?.enrolled);
-  const sampleText = enrolled
-    ? `${voiceProfile?.sample_count || 1} voice sample${
-        voiceProfile?.sample_count === 1 ? '' : 's'
-      } saved`
-    : 'No voice profile';
 
   return (
     <View style={styles.voiceProfileBlock}>
-      <View>
+      <View style={styles.voiceProfileCopy}>
         <Text style={styles.voiceProfileLabel}>Voice profile</Text>
-        <Text style={styles.voiceProfileStatus}>{sampleText}</Text>
+        <Text style={styles.voiceProfileStatus}>
+          {isEnrollingVoice
+            ? `Recording sample ${formatDuration(voiceEnrollSeconds)}`
+            : enrolled
+            ? profileSampleText(voiceProfile)
+            : 'Required for speaker filtering'}
+        </Text>
       </View>
-      <TouchableOpacity
+      <Pressable
         accessibilityRole="button"
         disabled={isSavingVoice}
-        style={[
+        style={({ pressed }) => [
           styles.voiceButton,
           isEnrollingVoice && styles.stopButton,
+          pressed && styles.pressedButton,
           isSavingVoice && styles.disabledButton,
         ]}
         onPress={onPress}
@@ -378,7 +830,7 @@ function VoiceProfileControl({
             ? 'Update voice'
             : 'Set voice'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }
@@ -433,152 +885,522 @@ function formatDuration(totalSeconds: number) {
     .join(':');
 }
 
+function formatDisplayDate(date: Date) {
+  return date.toLocaleDateString([], {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function profileSampleText(voiceProfile: VoiceProfileStatus | null) {
+  const sampleCount = voiceProfile?.sample_count || 1;
+
+  return `${sampleCount} voice sample${sampleCount === 1 ? '' : 's'} saved`;
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.appBackground,
+    overflow: 'hidden',
+  },
+  backgroundCanvas: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.appBackground,
+  },
+  backgroundTop: {
+    backgroundColor: colors.backgroundTop,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    height: 280,
+  },
+  backgroundShelf: {
+    backgroundColor: colors.backgroundShelf,
+    height: 180,
+    marginTop: 74,
+  },
+  scroll: {
+    backgroundColor: 'transparent',
+    flex: 1,
   },
   content: {
-    padding: 20,
-    paddingBottom: 32,
+    padding: 18,
+    paddingBottom: 24,
   },
   header: {
-    marginBottom: 18,
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerCopy: {
+    flex: 1,
+    paddingRight: 14,
+  },
+  appName: {
+    color: colors.blue,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   title: {
-    color: '#111827',
-    fontSize: 32,
+    color: colors.ink,
+    fontSize: 34,
     fontWeight: '800',
+    letterSpacing: 0,
   },
   subtitle: {
-    color: '#4B5563',
+    color: colors.inkSubtle,
     fontSize: 15,
-    marginTop: 4,
+    fontWeight: '600',
+    marginTop: 3,
   },
   reportBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: colors.amberSoft,
+    borderColor: colors.glassStroke,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexShrink: 1,
+    marginTop: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  reportBadgeReady: {
+    backgroundColor: colors.greenSoft,
+    borderColor: colors.glassStroke,
+  },
+  reportBadgeText: {
+    color: colors.amber,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  reportBadgeReadyText: {
+    color: colors.green,
+  },
+  screenIntro: {
+    marginBottom: 14,
+  },
+  screenTitle: {
+    color: colors.ink,
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  screenSubtitle: {
+    color: colors.inkMuted,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  voiceStatusPanel: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
     borderRadius: 8,
     borderWidth: 1,
-    color: '#047857',
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+    padding: 14,
+    ...shadows.card,
+  },
+  voiceStatusPanelActive: {
+    borderColor: colors.glassHighlight,
+  },
+  statusDot: {
+    backgroundColor: colors.amber,
+    borderRadius: 999,
+    height: 12,
+    width: 12,
+  },
+  statusDotActive: {
+    backgroundColor: colors.green,
+  },
+  voiceStatusCopy: {
+    flex: 1,
+  },
+  voiceStatusTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  voiceStatusText: {
+    color: colors.inkSubtle,
     fontSize: 13,
-    fontWeight: '700',
-    marginTop: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  manageButton: {
+    alignItems: 'center',
+    backgroundColor: colors.blueSoft,
+    borderColor: colors.glassStroke,
+    borderWidth: 1,
+    borderRadius: 8,
+    minWidth: 76,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  manageButtonText: {
+    color: colors.blue,
+    fontSize: 13,
+    fontWeight: '800',
   },
   statsPanel: {
     flexDirection: 'row',
     gap: 8,
     marginBottom: 16,
   },
-  metric: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
+  summaryPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
     borderRadius: 8,
     borderWidth: 1,
+    marginBottom: 16,
     padding: 14,
+    ...shadows.card,
+  },
+  sectionHeaderCompact: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionHeading: {
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  sectionMeta: {
+    color: colors.inkSubtle,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  helperText: {
+    color: colors.inkMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  metric: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    ...shadows.card,
   },
   metricValue: {
-    color: '#0F766E',
     fontSize: 24,
     fontWeight: '800',
+    letterSpacing: 0,
+  },
+  metricValueTeal: {
+    color: colors.teal,
+  },
+  metricValueBlue: {
+    color: colors.blue,
+  },
+  metricValueAmber: {
+    color: colors.amber,
   },
   metricLabel: {
-    color: '#64748B',
+    color: colors.inkSubtle,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 2,
     textTransform: 'uppercase',
   },
   capturePanel: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
+    backgroundColor: colors.surfaceStrong,
+    borderColor: colors.glassStroke,
     borderRadius: 8,
     borderWidth: 1,
     marginBottom: 16,
-    padding: 18,
+    padding: 16,
+    ...shadows.panel,
+  },
+  panelHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  panelEyebrow: {
+    color: colors.inkSubtle,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginBottom: 2,
+    textTransform: 'uppercase',
   },
   panelTitle: {
-    color: '#111827',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 6,
+    color: colors.ink,
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 0,
   },
-  captureNote: {
-    color: '#64748B',
+  stateBadge: {
+    backgroundColor: colors.slateSoft,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  stateBadgeLive: {
+    backgroundColor: colors.redSoft,
+  },
+  stateBadgeWorking: {
+    backgroundColor: colors.blueSoft,
+  },
+  stateBadgeText: {
+    color: colors.slate,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  stateBadgeLiveText: {
+    color: colors.red,
+  },
+  stateBadgeWorkingText: {
+    color: colors.blue,
+  },
+  timerBlock: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 14,
+    paddingVertical: 18,
+  },
+  timer: {
+    color: colors.ink,
+    fontSize: 48,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  timerLabel: {
+    color: colors.inkSubtle,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
+    textTransform: 'uppercase',
+  },
+  recordButton: {
+    alignItems: 'center',
+    backgroundColor: colors.blue,
+    borderColor: colors.glassHighlight,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 16,
+  },
+  pressedButton: {
+    opacity: 0.82,
+  },
+  stopButton: {
+    backgroundColor: colors.red,
+  },
+  disabledButton: {
+    opacity: 0.55,
+  },
+  recordButtonText: {
+    color: colors.onAccent,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  uploadingRow: {
+    alignItems: 'center',
+    backgroundColor: colors.tealSoft,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  uploadingText: {
+    color: colors.tealDark,
     fontSize: 13,
+    fontWeight: '700',
     lineHeight: 18,
-    marginBottom: 10,
+  },
+  analysisPendingPanel: {
+    alignItems: 'center',
+    backgroundColor: colors.tealSoft,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+    padding: 14,
+  },
+  analysisPendingCopy: {
+    flex: 1,
+  },
+  analysisPendingTitle: {
+    color: colors.tealDark,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  analysisPendingText: {
+    color: colors.tealDark,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  emptyState: {
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 16,
+    ...shadows.card,
+  },
+  emptyStateTitle: {
+    color: colors.ink,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  emptyStateText: {
+    color: colors.inkMuted,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  profileBody: {
+    color: colors.inkMuted,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
   },
   voiceProfileBlock: {
     alignItems: 'center',
-    borderBottomColor: '#E5E7EB',
-    borderBottomWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingBottom: 12,
+    marginTop: 12,
+    padding: 12,
+  },
+  voiceProfileCopy: {
+    flex: 1,
+    paddingRight: 8,
   },
   voiceProfileLabel: {
-    color: '#111827',
+    color: colors.ink,
     fontSize: 14,
     fontWeight: '800',
   },
   voiceProfileStatus: {
-    color: '#64748B',
+    color: colors.inkSubtle,
     fontSize: 13,
     fontWeight: '600',
+    lineHeight: 18,
     marginTop: 2,
   },
   voiceButton: {
     alignItems: 'center',
-    backgroundColor: '#334155',
+    backgroundColor: colors.blue,
+    borderColor: colors.glassHighlight,
+    borderWidth: 1,
     borderRadius: 8,
     minWidth: 110,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   voiceButtonText: {
-    color: '#FFFFFF',
+    color: colors.onAccent,
     fontSize: 13,
     fontWeight: '800',
   },
-  timer: {
-    color: '#111827',
-    fontSize: 44,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '700',
-    marginBottom: 16,
-  },
-  recordButton: {
-    alignItems: 'center',
-    backgroundColor: '#0F766E',
+  educationPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
     borderRadius: 8,
-    paddingVertical: 15,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 14,
+    ...shadows.card,
   },
-  stopButton: {
-    backgroundColor: '#B91C1C',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  recordButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  uploadingRow: {
-    alignItems: 'center',
+  profileStep: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     marginTop: 14,
   },
-  uploadingText: {
-    color: '#475569',
-    fontSize: 14,
+  profileStepIndex: {
+    alignItems: 'center',
+    backgroundColor: colors.blueSoft,
+    borderRadius: 999,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  profileStepIndexText: {
+    color: colors.blue,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  profileStepCopy: {
+    flex: 1,
+  },
+  profileStepTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  profileStepText: {
+    color: colors.inkMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  tabBar: {
+    backgroundColor: colors.surfaceStrong,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    marginHorizontal: 14,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    ...shadows.panel,
+  },
+  tabButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    flex: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.blueSoft,
+  },
+  tabButtonText: {
+    color: colors.inkSubtle,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  tabButtonTextActive: {
+    color: colors.blue,
   },
 });

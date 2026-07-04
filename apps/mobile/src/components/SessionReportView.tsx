@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ConversationSession, Mistake } from '../services/api';
+import { colors, shadows } from '../theme';
 
 interface Props {
   session: ConversationSession;
@@ -25,50 +26,64 @@ export function SessionReportView({ session }: Props) {
         session.target_transcript !== session.transcript));
   const speakerCount = session.speakers?.length ?? 0;
   const ignoredSpeakerCount = Math.max(0, speakerCount - 1);
+  const voiceMatchText = session.voice_match
+    ? formatVoiceMatch(session.voice_match)
+    : 'Voice match: unavailable';
 
   return (
     <View style={styles.section}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.sectionTitle}>Latest session report</Text>
+          <Text style={styles.sectionTitle}>Latest analysis</Text>
           <Text style={styles.sessionMeta}>
             {formatClock(session.started_at)} - {formatClock(session.ended_at)}
           </Text>
         </View>
-        <Text style={styles.count}>{session.mistakes.length} found</Text>
+        <View style={styles.resultBadge}>
+          <Text style={styles.resultBadgeText}>
+            {session.mistakes.length} found
+          </Text>
+        </View>
       </View>
 
-      <Text style={styles.speakerMeta}>
-        Analyzed speaker: {analyzedSpeaker}
-        {ignoredSpeakerCount > 0
-          ? `, ${ignoredSpeakerCount} other ${
-              ignoredSpeakerCount === 1 ? 'speaker' : 'speakers'
-            } ignored`
-          : ''}
-      </Text>
-      {session.speaker_notice ? (
-        <Text style={styles.speakerNotice}>{session.speaker_notice}</Text>
-      ) : null}
-      {session.voice_match ? (
-        <Text style={styles.voiceMatch}>
-          {formatVoiceMatch(session.voice_match)}
-        </Text>
-      ) : null}
+      <View style={styles.speakerPanel}>
+        <View style={styles.speakerMetric}>
+          <Text style={styles.speakerMetricLabel}>Analyzed</Text>
+          <Text style={styles.speakerMetricValue}>{analyzedSpeaker}</Text>
+        </View>
+        <View style={styles.speakerMetric}>
+          <Text style={styles.speakerMetricLabel}>Ignored</Text>
+          <Text style={styles.speakerMetricValue}>
+            {ignoredSpeakerCount}{' '}
+            {ignoredSpeakerCount === 1 ? 'speaker' : 'speakers'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.voiceMatchPanel}>
+        <Text style={styles.voiceMatch}>{voiceMatchText}</Text>
+        {session.speaker_notice ? (
+          <Text style={styles.speakerNotice}>{session.speaker_notice}</Text>
+        ) : null}
+      </View>
 
       <Text style={styles.summary}>{session.summary}</Text>
 
-      <Text style={styles.subheading}>Speaking mistakes</Text>
+      <Text style={styles.subheading}>Mistakes</Text>
       {session.mistakes.length > 0 ? (
         session.mistakes.map((mistake, index) => (
           <MistakeCard key={`${mistake.original}-${index}`} mistake={mistake} />
         ))
       ) : (
-        <Text style={styles.noMistakes}>
-          No speech-specific English mistakes were found for {analyzedSpeaker}.
-        </Text>
+        <View style={styles.noMistakesPanel}>
+          <Text style={styles.noMistakesTitle}>No mistakes found</Text>
+          <Text style={styles.noMistakes}>
+            {`No speech-specific English mistakes were found for ${analyzedSpeaker}.`}
+          </Text>
+        </View>
       )}
 
-      <Text style={styles.subheading}>Your speech</Text>
+      <Text style={styles.subheading}>Analyzed speech</Text>
       <Text style={styles.transcript}>
         {targetTranscript || 'No speech was returned for the analyzed speaker.'}
       </Text>
@@ -119,15 +134,21 @@ function MistakeCard({ mistake }: { mistake: Mistake }) {
     <View style={styles.mistakeCard}>
       <View style={styles.mistakeHeader}>
         <View>
-          <Text style={styles.category}>{mistake.category || 'mistake'}</Text>
+          <Text style={styles.category}>{mistake.category || 'Mistake'}</Text>
           {mistake.speaker ? (
             <Text style={styles.mistakeSpeaker}>{mistake.speaker}</Text>
           ) : null}
         </View>
-        <Text style={styles.count}>{mistake.count || 1}x</Text>
+        <Text style={styles.mistakeCount}>{mistake.count || 1}x</Text>
       </View>
-      <Text style={styles.original}>{mistake.original}</Text>
-      <Text style={styles.correction}>Say: {mistake.correction}</Text>
+      <View style={styles.phraseBlock}>
+        <Text style={styles.phraseLabel}>Heard</Text>
+        <Text style={styles.original}>{mistake.original}</Text>
+      </View>
+      <View style={[styles.phraseBlock, styles.phraseBlockCorrect]}>
+        <Text style={styles.phraseLabel}>Say</Text>
+        <Text style={styles.correction}>{mistake.correction}</Text>
+      </View>
       <Text style={styles.reason}>{mistake.reason}</Text>
     </View>
   );
@@ -142,12 +163,7 @@ function formatClock(value: string) {
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    borderWidth: 1,
     marginBottom: 16,
-    padding: 16,
   },
   header: {
     alignItems: 'flex-start',
@@ -157,61 +173,98 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    color: '#111827',
-    fontSize: 20,
-    fontWeight: '700',
+    color: colors.ink,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0,
   },
   sessionMeta: {
-    color: '#64748B',
+    color: colors.inkSubtle,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 4,
   },
-  count: {
-    color: '#0F766E',
-    fontSize: 13,
+  resultBadge: {
+    backgroundColor: colors.tealSoft,
+    borderColor: colors.glassStroke,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  resultBadgeText: {
+    color: colors.tealDark,
+    fontSize: 12,
     fontWeight: '800',
   },
   summary: {
-    color: '#374151',
+    color: colors.inkMuted,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 14,
   },
   subheading: {
-    color: '#111827',
-    fontSize: 15,
+    color: colors.ink,
+    fontSize: 16,
     fontWeight: '800',
     marginBottom: 8,
     marginTop: 4,
   },
-  speakerMeta: {
-    color: '#0F766E',
+  speakerPanel: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  speakerMetric: {
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    padding: 12,
+    ...shadows.card,
+  },
+  speakerMetricLabel: {
+    color: colors.inkSubtle,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  speakerMetricValue: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 19,
+  },
+  voiceMatchPanel: {
+    backgroundColor: colors.blueSoft,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+    padding: 12,
+  },
+  speakerNotice: {
+    color: colors.inkMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  voiceMatch: {
+    color: colors.blue,
     fontSize: 13,
     fontWeight: '800',
     lineHeight: 18,
-    marginBottom: 6,
-  },
-  speakerNotice: {
-    color: '#64748B',
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  voiceMatch: {
-    color: '#475569',
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 18,
-    marginBottom: 12,
   },
   mistakeCard: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E5E7EB',
+    backgroundColor: colors.surfaceStrong,
+    borderColor: colors.glassStroke,
     borderRadius: 8,
     borderWidth: 1,
     marginBottom: 10,
     padding: 14,
+    ...shadows.card,
   },
   mistakeHeader: {
     alignItems: 'center',
@@ -220,49 +273,83 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   category: {
-    color: '#475569',
+    color: colors.inkMuted,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   mistakeSpeaker: {
-    color: '#64748B',
+    color: colors.inkSubtle,
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
+  mistakeCount: {
+    color: colors.teal,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  phraseBlock: {
+    backgroundColor: colors.redSoft,
+    borderRadius: 8,
+    marginBottom: 8,
+    padding: 10,
+  },
+  phraseBlockCorrect: {
+    backgroundColor: colors.greenSoft,
+  },
+  phraseLabel: {
+    color: colors.inkSubtle,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 3,
+    textTransform: 'uppercase',
+  },
   original: {
-    color: '#B91C1C',
+    color: colors.red,
     fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 6,
+    fontWeight: '800',
     textDecorationLine: 'line-through',
   },
   correction: {
-    color: '#166534',
+    color: colors.green,
     fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 6,
+    fontWeight: '800',
   },
   reason: {
-    color: '#4B5563',
+    color: colors.inkMuted,
     fontSize: 13,
     lineHeight: 19,
   },
-  noMistakes: {
-    color: '#166534',
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  transcript: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E5E7EB',
+  noMistakesPanel: {
+    backgroundColor: colors.greenSoft,
+    borderColor: colors.glassStroke,
     borderRadius: 8,
     borderWidth: 1,
-    color: '#334155',
+    marginBottom: 12,
+    padding: 14,
+  },
+  noMistakesTitle: {
+    color: colors.green,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  noMistakes: {
+    color: colors.green,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  transcript: {
+    backgroundColor: colors.surface,
+    borderColor: colors.glassStroke,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.slate,
     fontSize: 14,
     lineHeight: 21,
+    marginBottom: 12,
     padding: 12,
+    ...shadows.card,
   },
 });
