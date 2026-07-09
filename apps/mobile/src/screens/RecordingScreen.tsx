@@ -8,8 +8,6 @@ import React, {
 import {
   Alert,
   AppState,
-  PermissionsAndroid,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -43,12 +41,17 @@ import {
   Tone,
 } from '../components/primitives';
 import { colors, glass, gradients, radii, spacing } from '../theme';
+import { requestMicrophonePermission } from '../utils/audioPermissions';
 import { formatDuration } from '../utils/format';
 
 const REPORT_HOUR = 20;
 type AppTab = 'record' | 'insights' | 'voice';
 
-export function RecordingScreen() {
+export function RecordingScreen({
+  initialVoiceProfile = null,
+}: {
+  initialVoiceProfile?: VoiceProfileStatus | null;
+}) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AppTab>('record');
   const [isRecording, setIsRecording] = useState(false);
@@ -60,7 +63,7 @@ export function RecordingScreen() {
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [dailyReport, setDailyReport] = useState<DailyReport | null>(null);
   const [voiceProfile, setVoiceProfile] = useState<VoiceProfileStatus | null>(
-    null,
+    initialVoiceProfile,
   );
   const [latestSession, setLatestSession] =
     useState<ConversationSession | null>(null);
@@ -268,7 +271,11 @@ export function RecordingScreen() {
     : isUploading
     ? 'Analyzing'
     : 'Ready';
-  const captureTone: Tone = isRecording ? 'live' : isUploading ? 'busy' : 'neutral';
+  const captureTone: Tone = isRecording
+    ? 'live'
+    : isUploading
+    ? 'busy'
+    : 'neutral';
 
   return (
     <View style={styles.root}>
@@ -425,7 +432,11 @@ function RecordTab({
         <StatStrip
           items={[
             { label: 'Sessions', value: String(sessionCount), tone: 'indigo' },
-            { label: 'Minutes', value: String(transcriptMinutes), tone: 'teal' },
+            {
+              label: 'Minutes',
+              value: String(transcriptMinutes),
+              tone: 'teal',
+            },
             { label: 'Patterns', value: String(mistakeCount), tone: 'amber' },
           ]}
         />
@@ -609,7 +620,9 @@ function TabButton({
       ]}
     >
       <View style={styles.tabIconSlot}>{icon}</View>
-      <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
+      <Text
+        style={[styles.tabButtonText, active && styles.tabButtonTextActive]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -655,24 +668,6 @@ function VoiceIcon({ active }: { active: boolean }) {
       ))}
     </View>
   );
-}
-
-async function requestMicrophonePermission() {
-  if (Platform.OS !== 'android') {
-    return true;
-  }
-
-  const result = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    {
-      title: 'Microphone access',
-      message: 'Pro Speech needs microphone access to analyze conversations.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Cancel',
-    },
-  );
-
-  return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 function getLocalDateKey(date: Date) {
