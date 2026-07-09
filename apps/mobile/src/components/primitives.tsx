@@ -319,12 +319,41 @@ export function MistakeList({
             </View>
             <Text style={styles.mistakeOriginal}>{'✖'} {mistake.original}</Text>
             <Text style={styles.mistakeCorrection}>{'✓'} {mistake.correction}</Text>
+            {mistake.evidence ? (
+              <Text style={styles.mistakeEvidence}>
+                {formatPronunciationEvidence(mistake)}
+              </Text>
+            ) : null}
             <Text style={styles.mistakeReason}>{mistake.reason}</Text>
           </View>
         </View>
       ))}
     </View>
   );
+}
+
+function formatPronunciationEvidence(mistake: Mistake) {
+  const evidence = mistake.evidence;
+  if (!evidence) {
+    return '';
+  }
+
+  const parts: string[] = [];
+  if (evidence.expected_sound) {
+    const heard =
+      evidence.heard_sound && evidence.heard_sound !== evidence.expected_sound
+        ? ` heard as /${evidence.heard_sound}/`
+        : '';
+    parts.push(`/${evidence.expected_sound}/${heard}`);
+  }
+  if (typeof evidence.score === 'number') {
+    parts.push(`score ${Math.round(evidence.score)}/100`);
+  }
+  if (evidence.example_words?.length) {
+    parts.push(`examples: ${evidence.example_words.join(', ')}`);
+  }
+
+  return parts.join(' | ');
 }
 
 // ---------- Info banner ----------
@@ -670,6 +699,12 @@ const styles = StyleSheet.create({
     color: colors.green,
     fontSize: 15,
     fontWeight: '800',
+  },
+  mistakeEvidence: {
+    color: colors.tealDeep,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
   },
   mistakeReason: {
     color: colors.inkMuted,

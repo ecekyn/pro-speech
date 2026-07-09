@@ -3,24 +3,42 @@ package models
 import "time"
 
 type Mistake struct {
-	Original   string `json:"original"`
-	Correction string `json:"correction"`
-	Reason     string `json:"reason"`
-	Category   string `json:"category,omitempty"`
-	Count      int    `json:"count,omitempty"`
-	Speaker    string `json:"speaker,omitempty"`
+	Original   string                 `json:"original"`
+	Correction string                 `json:"correction"`
+	Reason     string                 `json:"reason"`
+	Category   string                 `json:"category,omitempty"`
+	Count      int                    `json:"count,omitempty"`
+	Speaker    string                 `json:"speaker,omitempty"`
+	Source     string                 `json:"source,omitempty"`
+	Confidence float64                `json:"confidence,omitempty"`
+	Evidence   *PronunciationEvidence `json:"evidence,omitempty"`
+}
+
+type PronunciationEvidence struct {
+	ExpectedSound string   `json:"expected_sound,omitempty"`
+	HeardSound    string   `json:"heard_sound,omitempty"`
+	Score         float64  `json:"score,omitempty"`
+	ExampleWords  []string `json:"example_words,omitempty"`
+}
+
+type PronunciationAnalysis struct {
+	Status         string `json:"status"`
+	Provider       string `json:"provider,omitempty"`
+	Notice         string `json:"notice,omitempty"`
+	ChunksAnalyzed int    `json:"chunks_analyzed,omitempty"`
 }
 
 type AnalysisReport struct {
-	Transcript       string      `json:"transcript"`
-	TargetTranscript string      `json:"target_transcript,omitempty"`
-	TargetSpeaker    string      `json:"target_speaker,omitempty"`
-	SpeakerMode      string      `json:"speaker_mode,omitempty"`
-	SpeakerNotice    string      `json:"speaker_notice,omitempty"`
-	Speakers         []string    `json:"speakers,omitempty"`
-	VoiceMatch       *VoiceMatch `json:"voice_match,omitempty"`
-	Mistakes         []Mistake   `json:"mistakes"`
-	Summary          string      `json:"summary"`
+	Transcript       string                 `json:"transcript"`
+	TargetTranscript string                 `json:"target_transcript,omitempty"`
+	TargetSpeaker    string                 `json:"target_speaker,omitempty"`
+	SpeakerMode      string                 `json:"speaker_mode,omitempty"`
+	SpeakerNotice    string                 `json:"speaker_notice,omitempty"`
+	Speakers         []string               `json:"speakers,omitempty"`
+	VoiceMatch       *VoiceMatch            `json:"voice_match,omitempty"`
+	Pronunciation    *PronunciationAnalysis `json:"pronunciation,omitempty"`
+	Mistakes         []Mistake              `json:"mistakes"`
+	Summary          string                 `json:"summary"`
 }
 
 type TranscriptionResult struct {
@@ -32,20 +50,21 @@ type TranscriptionResult struct {
 }
 
 type ConversationSession struct {
-	ID               string      `json:"id"`
-	Date             string      `json:"date"`
-	StartedAt        time.Time   `json:"started_at"`
-	EndedAt          time.Time   `json:"ended_at"`
-	DurationSeconds  int         `json:"duration_seconds"`
-	Transcript       string      `json:"transcript"`
-	TargetTranscript string      `json:"target_transcript,omitempty"`
-	TargetSpeaker    string      `json:"target_speaker,omitempty"`
-	SpeakerMode      string      `json:"speaker_mode,omitempty"`
-	SpeakerNotice    string      `json:"speaker_notice,omitempty"`
-	Speakers         []string    `json:"speakers,omitempty"`
-	VoiceMatch       *VoiceMatch `json:"voice_match,omitempty"`
-	Mistakes         []Mistake   `json:"mistakes"`
-	Summary          string      `json:"summary"`
+	ID               string                 `json:"id"`
+	Date             string                 `json:"date"`
+	StartedAt        time.Time              `json:"started_at"`
+	EndedAt          time.Time              `json:"ended_at"`
+	DurationSeconds  int                    `json:"duration_seconds"`
+	Transcript       string                 `json:"transcript"`
+	TargetTranscript string                 `json:"target_transcript,omitempty"`
+	TargetSpeaker    string                 `json:"target_speaker,omitempty"`
+	SpeakerMode      string                 `json:"speaker_mode,omitempty"`
+	SpeakerNotice    string                 `json:"speaker_notice,omitempty"`
+	Speakers         []string               `json:"speakers,omitempty"`
+	VoiceMatch       *VoiceMatch            `json:"voice_match,omitempty"`
+	Pronunciation    *PronunciationAnalysis `json:"pronunciation,omitempty"`
+	Mistakes         []Mistake              `json:"mistakes"`
+	Summary          string                 `json:"summary"`
 }
 
 type SpeakerSegment struct {

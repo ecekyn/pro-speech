@@ -177,6 +177,9 @@ func analyzeUploadedAudio(c *gin.Context, targetSpeaker string) (*models.Analysi
 	}
 	report.VoiceMatch = voiceMatch
 	report.SpeakerNotice = joinNotices(voiceMatchNotice(voiceMatch), report.SpeakerNotice)
+	pronunciation, pronunciationMistakes := services.AnalyzePronunciation(audioData, filename, transcription, report)
+	report.Pronunciation = pronunciation
+	report.Mistakes = append(report.Mistakes, pronunciationMistakes...)
 
 	return report, nil
 }
@@ -249,6 +252,7 @@ func buildSession(report *models.AnalysisReport, metadata sessionMetadata) model
 		SpeakerNotice:    report.SpeakerNotice,
 		Speakers:         report.Speakers,
 		VoiceMatch:       report.VoiceMatch,
+		Pronunciation:    report.Pronunciation,
 		Mistakes:         report.Mistakes,
 		Summary:          report.Summary,
 	}

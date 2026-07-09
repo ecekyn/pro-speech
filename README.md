@@ -27,6 +27,11 @@ export OPENAI_ANALYSIS_MODEL=gpt-4o-mini
 export PRO_SPEECH_DATA_PATH=data/pro_speech.json
 export PRO_SPEECH_VOICE_PROFILE_PATH=data/voice_profile.json
 export FFMPEG_PATH=/opt/homebrew/bin/ffmpeg
+export PRONUNCIATION_PROVIDER=speechace
+export SPEECHACE_API_KEY=your_speechace_key
+export SPEECHACE_DIALECT=en-us
+export SPEECHACE_BASE_URL=https://api.speechace.co
+export PRONUNCIATION_MAX_CHUNKS=60
 
 go run main.go
 ```
@@ -41,6 +46,8 @@ The backend exposes:
 - `GET /api/reports/today?date=YYYY-MM-DD` - returns the daily top-3 report for a date.
 
 Voice matching uses Lemonfox diarized speaker labels plus a local acoustic fingerprint generated with `ffmpeg`. If a voice profile is enrolled but the backend cannot confidently match it to a diarized speaker, the session is not analyzed so the app does not report on someone else's speech.
+
+Pronunciation analysis is optional and runs after speaker matching. When `PRONUNCIATION_PROVIDER=speechace` and `SPEECHACE_API_KEY` are set, the backend extracts short target-speaker audio chunks with `ffmpeg`, scores them with Speechace, and adds repeated or severe acoustic pronunciation patterns to the same mistake list as the text analysis. If Speechace is not configured or unavailable, sessions fall back to text-only analysis and include a pronunciation status in the API response.
 
 ### Mobile App
 
