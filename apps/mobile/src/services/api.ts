@@ -14,6 +14,16 @@ export interface Mistake {
   category?: string;
   count?: number;
   speaker?: string;
+  source?: string;
+  confidence?: number;
+  evidence?: PronunciationEvidence;
+}
+
+export interface PronunciationEvidence {
+  expected_sound?: string;
+  heard_sound?: string;
+  score?: number;
+  example_words?: string[];
 }
 
 export interface SpeakerScore {
@@ -36,6 +46,13 @@ export interface VoiceProfileStatus {
   sample_count?: number;
 }
 
+export interface PronunciationAnalysis {
+  status: string;
+  provider?: string;
+  notice?: string;
+  chunks_analyzed?: number;
+}
+
 export interface AnalysisReport {
   transcript: string;
   target_transcript?: string;
@@ -44,6 +61,7 @@ export interface AnalysisReport {
   speaker_notice?: string;
   speakers?: string[];
   voice_match?: VoiceMatch;
+  pronunciation?: PronunciationAnalysis;
   mistakes: Mistake[];
   summary: string;
 }
@@ -61,6 +79,7 @@ export interface ConversationSession {
   speaker_notice?: string;
   speakers?: string[];
   voice_match?: VoiceMatch;
+  pronunciation?: PronunciationAnalysis;
   mistakes: Mistake[];
   summary: string;
 }

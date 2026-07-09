@@ -84,12 +84,12 @@ func AnalyzeTranscriptWithOptions(transcript string, options AnalysisOptions) (*
 The app is for speech improvement, not writing improvement. Only include issues that would help someone sound clearer, more natural, or more fluent while speaking in conversation.
 
 Do include:
-- pronunciation patterns that can reasonably be inferred from repeated transcription patterns
 - filler-word overuse, false starts, repeated restarts, or unclear phrasing
 - spoken grammar or spoken word choice that sounds unnatural in conversation
 - clarity issues that would affect a listener
 
 Do not include:
+- pronunciation or accent issues; those require direct audio evidence and are handled separately
 - spelling, punctuation, capitalization, paragraphing, or comma usage
 - written-style edits that do not matter when speaking
 - transcription artifacts, homophones, or proper-noun guesses unless the spoken pattern is clearly repeated
@@ -102,7 +102,7 @@ Return a JSON object with this exact structure:
       "original": "the spoken phrase or pattern",
       "correction": "what to say instead",
       "reason": "brief speech-coaching explanation",
-      "category": "pronunciation|fluency|spoken_grammar|spoken_word_choice|clarity|other",
+      "category": "fluency|spoken_grammar|spoken_word_choice|clarity|other",
       "count": 1,
       "speaker": "%s"
     }
@@ -155,13 +155,18 @@ Transcript:
 	if result.Mistakes == nil {
 		result.Mistakes = []models.Mistake{}
 	}
+	filteredMistakes := make([]models.Mistake, 0, len(result.Mistakes))
 	for i := range result.Mistakes {
+		if strings.EqualFold(strings.TrimSpace(result.Mistakes[i].Category), "pronunciation") {
+			continue
+		}
 		if result.Mistakes[i].Count == 0 {
 			result.Mistakes[i].Count = 1
 		}
 		if strings.TrimSpace(result.Mistakes[i].Speaker) == "" {
 			result.Mistakes[i].Speaker = selection.TargetSpeaker
 		}
+		filteredMistakes = append(filteredMistakes, result.Mistakes[i])
 	}
 	if strings.TrimSpace(result.Summary) == "" {
 		result.Summary = "No speech-focused summary was returned for this session."
@@ -174,7 +179,7 @@ Transcript:
 		SpeakerMode:      selection.SpeakerMode,
 		SpeakerNotice:    selection.SpeakerNotice,
 		Speakers:         selection.Speakers,
-		Mistakes:         result.Mistakes,
+		Mistakes:         filteredMistakes,
 		Summary:          result.Summary,
 	}, nil
 }
